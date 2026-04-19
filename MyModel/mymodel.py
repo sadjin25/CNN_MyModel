@@ -1,6 +1,8 @@
 '''
 DONE : cnn kernel size 5x5 to 3x3.
-TODO : add residual block
+DONE : add residual block
+DONE : add batch normalization
+TODO : GPU support. (cuda, device, to(device) etc..)
 TODO : adjust model fc size.. later  
 '''
 
@@ -44,19 +46,43 @@ testset = torchvision.datasets.CIFAR10(root='./CNN_MyModel/MyModel/dataPT/',trai
 testloader = torch.utils.data.DataLoader(testset, batch_size=TEST_BATCH_SIZE,
                                           shuffle=False, num_workers=0)
 
-class Net(nn.Module):
-    def __init__(self):
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 3) 
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 3) 
-        self.fc1 = nn.Linear(16*6*6, 120) 
+        self.conv1 = nn.Conv2d(in_channels, out_channels, 
+                               kernel_size=3, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, 
+                                kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.shortcut = nn.Identity()
+        self.shortcut_bn = nn.Identity()
+        if in_channels != out_channels:
+            self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+            self.shortcut_bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        identity = self.shortcut_bn(self.shortcut(x)) # outchannels * 32 * 32
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.bn2(self.conv2(x))
+        return F.relu(x + identity)
+
+class Net(nn.Module):
+    def __init__(self, in_channels=3, out_channels=8, pool_size = 2):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.pool_size = pool_size
+        self.pool = nn.MaxPool2d(self.pool_size, self.pool_size) # 32->16
+        self.res1 = ResidualBlock(in_channels, out_channels) 
+        self.res2 = ResidualBlock(out_channels, out_channels) 
+        self.fc1 = nn.Linear(out_channels*(32//self.pool_size**2)**2, 120) # if outchannel = 8 && poolsize = 2, Image size is 32x32, res has 2 pools(2,2).
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x))) # 6 * 15 * 15
-        x = self.pool(F.relu(self.conv2(x))) # 16 * 6 * 6
+        x = self.pool(self.res1(x))
+        x = self.pool(self.res2(x))
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
