@@ -2,8 +2,9 @@
 DONE : cnn kernel size 5x5 to 3x3.
 DONE : add residual block
 DONE : add batch normalization
+DONE : add Dropout
+TODO : add Unet
 TODO : GPU support. (cuda, device, to(device) etc..)
-TODO : adjust model fc size.. later  
 '''
 
 
@@ -80,12 +81,19 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
 
+        self.dropout_fc = nn.Dropout(p=0.3)
+
     def forward(self, x):
         x = self.pool(self.res1(x))
         x = self.pool(self.res2(x))
         x = torch.flatten(x, 1)
+
         x = F.relu(self.fc1(x))
+        x = self.dropout_fc(x)
+        
         x = F.relu(self.fc2(x))
+        x = self.dropout_fc(x)
+        
         x = self.fc3(x)
         return x
     
