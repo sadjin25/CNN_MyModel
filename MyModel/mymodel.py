@@ -3,8 +3,8 @@ DONE : cnn kernel size 5x5 to 3x3.
 DONE : add residual block
 DONE : add batch normalization
 DONE : add Dropout
+DONE : GPU support. (cuda, device, to(device) etc..)
 TODO : add Unet
-TODO : GPU support. (cuda, device, to(device) etc..)
 '''
 
 
@@ -34,6 +34,9 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 g = torch.Generator()
 g.manual_seed(SEED)
+
+DEVICE = torch.cuda.current_device() if torch.cuda.is_available() else 'cpu'
+
 
 # num_workers > 0일경우, windows 상에서 sub프로세스 하나 새로 띄움. 멀티프로세싱 꼬여서 RuntimeERR 발생가능
 trainset = torchvision.datasets.CIFAR10(root='./CNN_MyModel/MyModel/dataPT/',train=True,
@@ -97,7 +100,7 @@ class Net(nn.Module):
         x = self.fc3(x)
         return x
     
-net = Net()
+net = Net().to(DEVICE)
         
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
@@ -112,6 +115,7 @@ for epoch in range(EPOCH_SIZE):
     train_cases = 0
 
     for inputs, labels in trainloader:
+        inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
         optimizer.zero_grad()
 
         outputs = net(inputs)
@@ -148,7 +152,7 @@ net.eval()
 with torch.no_grad():
     for i, data in enumerate(testloader, 0):
         inputs, labels = data
-
+        inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
         outputs = net(inputs)
         loss = criterion(outputs, labels)
 
